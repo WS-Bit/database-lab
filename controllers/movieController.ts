@@ -66,6 +66,8 @@ export const postMovie = async (req: Request, res: Response) => {
   }
 };
 
+
+
 // ! Update a movie
 export const updateMovie = async (req: Request, res: Response) => {
   console.log("Update request from user", req.currentUser); 
@@ -142,3 +144,5 @@ export const deleteMovie = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'An error occurred while deleting the movie' });
   }
 };
+
+
