@@ -1,11 +1,13 @@
 import Movies from '../models/movies';
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
+import formatValidationError from '../errors/validation';
+import actors from '../models/actors';
 
-// ! Get all movies
+// Get all movies
 export const indexMovies = async (req: Request, res: Response) => {
   try {
-    const movies = await Movies.find();
+    const movies = await Movies.find().populate('user', '_id username');
     console.log('Obtained these from db:', movies);
     res.status(200).json(movies);
   } catch (error) {
@@ -14,21 +16,16 @@ export const indexMovies = async (req: Request, res: Response) => {
   }
 };
 
-// ! Get movie by ID
+// Get movie by ID
 export const getMovieById = async (req: Request, res: Response) => {
-
   if (!mongoose.Types.ObjectId.isValid(req.params.movieId)) {
     return res.status(400).json({ message: 'Invalid ID format' });
   }
 
   try {
-    // ! .populate grabs the data and shows data from multiple db
-    const movie = await Movies.findById(req.params.movieId).populate({
-      path: 'actors',
-      populate: {
-          path: 'user'
-      }
-  }).populate('user') 
+    const movie = await Movies.findById(req.params.movieId)
+      .populate({ path: 'actors', populate: { path: 'user' } })
+      .populate('user', '_id username');
 
     if (!movie) {
       return res.status(404).json({ message: 'Movie not found' });
@@ -42,23 +39,33 @@ export const getMovieById = async (req: Request, res: Response) => {
   }
 };
 
-// ! Post new movie
+// Post new movie
 export const postMovie = async (req: Request, res: Response) => {
   console.log('Post request from user', req.currentUser);
 
   try {
-    // ! Assign the current user's ID to the new movie
     req.body.user = req.currentUser._id;
     const newMovie = req.body;
 
-    // ! Log incoming data for debugging
     console.log('USER HAS SENT US:', newMovie);
 
-    // ! Create and save the new movie
+    // Validate the incoming movie data
+    const validationErrors = formatValidationError(newMovie);
+    if (Object.keys(validationErrors).length > 0) {
+      return res.status(400).json({ errors: validationErrors });
+    }
+
+    // Save the new movie
     const savedMovie = await Movies.create(newMovie);
     console.log('JUST ADDED:', savedMovie);
 
-    // ! Return the created movie as a response
+    if (newMovie.actors && newMovie.actors.length > 0) {
+      await actors.updateMany(
+        { _id: { $in: newMovie.actors } },
+        { $push: { movies: savedMovie._id } }
+      );
+    }
+
     res.status(201).json(savedMovie);
   } catch (error) {
     console.error('Error posting a movie:', error);
@@ -66,26 +73,21 @@ export const postMovie = async (req: Request, res: Response) => {
   }
 };
 
-
-
-// ! Update a movie
+// Update a movie
 export const updateMovie = async (req: Request, res: Response) => {
-  console.log("Update request from user", req.currentUser); 
+  console.log('Update request from user', req.currentUser);
   const { id: movieId } = req.params;
 
-  // Check if the provided movieId is a valid ObjectId
   if (!mongoose.Types.ObjectId.isValid(movieId)) {
     return res.status(400).json({ message: 'Invalid ID format' });
   }
 
   try {
-    // Find the movie by ID
     const movie = await Movies.findById(movieId);
     if (!movie) {
       return res.status(404).json({ message: 'Movie not found' });
     }
 
-    // Check if the current user is the owner of the movie
     const movieOwner = movie.user;
     console.log('The movie you\'re trying to update is owned by:', movieOwner);
 
@@ -95,7 +97,12 @@ export const updateMovie = async (req: Request, res: Response) => {
 
     console.log('USER HAS EDITED:', movie, 'WITH:', req.body);
 
-    // Update the movie with new data
+    // Validate the updated movie data
+    const validationErrors = formatValidationError(req.body);
+    if (Object.keys(validationErrors).length > 0) {
+      return res.status(400).json({ errors: validationErrors });
+    }
+
     Object.assign(movie, req.body);
     const updatedMovie = await movie.save();
 
@@ -106,19 +113,17 @@ export const updateMovie = async (req: Request, res: Response) => {
   }
 };
 
-// ! Delete a movie
+// Delete a movie
 export const deleteMovie = async (req: Request, res: Response) => {
-  console.log('Delete request from user', req.currentUser); 
+  console.log('Delete request from user', req.currentUser);
 
   const { id: movieId } = req.params;
 
-  // Check if the provided movieId is a valid ObjectId
   if (!mongoose.Types.ObjectId.isValid(movieId)) {
     return res.status(400).json({ message: 'Invalid ID format' });
   }
 
   try {
-    // Find the movie by ID
     const movieDoc = await Movies.findById(movieId);
     if (!movieDoc) {
       return res.status(404).json({ message: "The movie you're trying to delete is not found." });
@@ -127,12 +132,10 @@ export const deleteMovie = async (req: Request, res: Response) => {
     const movieOwner = movieDoc.user;
     console.log('The movie you\'re trying to delete is owned by:', movieOwner);
 
-    // Check if the current user is the owner of the movie
     if (!req.currentUser || !req.currentUser._id.equals(movieOwner)) {
       return res.status(403).json({ message: 'You are not authorized to delete this movie.' });
     }
 
-    // Delete the movie
     const deletedMovie = await Movies.findByIdAndDelete(movieId);
     if (!deletedMovie) {
       return res.status(404).json({ message: 'Movie not found' });
@@ -144,5 +147,3 @@ export const deleteMovie = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'An error occurred while deleting the movie' });
   }
 };
-
-

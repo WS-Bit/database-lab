@@ -104,7 +104,7 @@ export const updateActor = async (req: Request, res: Response) => {
   };
 
 
-  // ! Delete a movie
+  // ! Delete an actor
 export const deleteActor = async (req: Request, res: Response) => {
     console.log('Delete request from user', req.currentUser); 
   

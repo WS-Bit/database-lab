@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 import { indexMovies, getMovieById, postMovie, updateMovie, deleteMovie } from '../controllers/movieController';
 import { indexActors, getActorById, postActor, updateActor, deleteActor } from '../controllers/actorController';
-import { signUp, login } from '../controllers/userController';
+import { signUp, login, getCurrentUser } from '../controllers/userController';
 import { createReview, deleteReview, updateReview } from '../controllers/reviewsController';
 import secureRoute from '../middleware/secureRoute';
 import sanitizeRoute from '../middleware/sanatizeRoute';
@@ -48,5 +48,9 @@ router
 .route('/movies/:movieId/reviews/:reviewId')
 .put(sanitizeRoute, secureRoute, updateReview)
 .delete(sanitizeRoute, secureRoute, deleteReview);
+
+router
+.route('/user')
+.get(secureRoute, getCurrentUser)
 
 export default router;
